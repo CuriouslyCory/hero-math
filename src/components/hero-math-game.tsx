@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useReducer, useCallback } from "react";
 import { Button } from "~/components/ui/button";
 import { Card } from "~/components/ui/card";
 import GameBoard from "../components/game-board";
@@ -12,8 +12,33 @@ import { Shield, Clock, Lightbulb } from "lucide-react";
 // Game rule types
 type RuleType = "addition" | "subtraction" | "multiples";
 
+// Cell type for grid items
+type Cell = {
+  type: "empty" | "number" | "obstacle" | "powerup";
+  value: number | null;
+};
+
+// Entity position and movement
+type Position = {
+  x: number;
+  y: number;
+};
+
+type Direction = "right" | "left" | "up" | "down";
+
+type Enemy = Position & {
+  direction: Direction;
+};
+
+// Power-ups state
+type PowerUps = {
+  timeFreeze: number;
+  mathBoost: number;
+  shield: number;
+};
+
 // Game state interface
-interface GameState {
+type GameState = {
   level: number;
   lives: number;
   score: number;
@@ -21,55 +46,309 @@ interface GameState {
   target: number;
   secondaryValue?: number;
   collected: number[];
-  heroPosition: { x: number; y: number };
+  heroPosition: Position;
   gameOver: boolean;
   levelComplete: boolean;
   showLevelIntro: boolean;
+  powerUps: PowerUps;
+  enemyPositions: Enemy[];
+  gridItems: Cell[][];
+};
+
+// Action types for reducer
+type GameAction =
+  | { type: "INITIALIZE_GRID"; payload: Cell[][] }
+  | { type: "MOVE_HERO"; payload: Position }
+  | { type: "MOVE_ENEMIES" }
+  | { type: "COLLECT_ITEM"; payload: { position: Position; value: number } }
+  | { type: "USE_POWERUP"; payload: { type: keyof PowerUps; duration: number } }
+  | { type: "UPDATE_POWERUPS" }
+  | { type: "START_LEVEL" }
+  | { type: "COMPLETE_LEVEL" }
+  | { type: "NEXT_LEVEL" }
+  | { type: "LOSE_LIFE" }
+  | { type: "GAME_OVER" }
+  | { type: "RESET_GAME" };
+
+// Initial game state
+const initialGameState: GameState = {
+  level: 1,
+  lives: 3,
+  score: 0,
+  ruleType: "addition",
+  target: 10,
+  collected: [],
+  heroPosition: { x: 2, y: 5 },
+  gameOver: false,
+  levelComplete: false,
+  showLevelIntro: true,
   powerUps: {
-    timeFreeze: number;
-    mathBoost: number;
-    shield: number;
-  };
-  enemyPositions: Array<{ x: number; y: number; direction: string }>;
-  gridItems: Array<Array<{ type: string; value: number | null }>>;
+    timeFreeze: 0,
+    mathBoost: 0,
+    shield: 0,
+  },
+  enemyPositions: [
+    { x: 0, y: 0, direction: "right" as Direction },
+    { x: 4, y: 2, direction: "left" as Direction },
+  ],
+  gridItems: [],
+};
+
+// Game reducer for handling all state changes
+function gameReducer(state: GameState, action: GameAction): GameState {
+  switch (action.type) {
+    case "INITIALIZE_GRID":
+      return {
+        ...state,
+        gridItems: action.payload,
+      };
+
+    case "MOVE_HERO":
+      return {
+        ...state,
+        heroPosition: action.payload,
+      };
+
+    case "MOVE_ENEMIES": {
+      if (
+        state.gameOver ||
+        state.levelComplete ||
+        state.showLevelIntro ||
+        state.powerUps.timeFreeze > 0
+      ) {
+        return state;
+      }
+
+      const newEnemyPositions = state.enemyPositions.map((enemy) => {
+        let { x, y, direction } = enemy;
+
+        // Move enemy based on direction
+        if (direction === "right") {
+          x = x + 1 >= 5 ? 4 : x + 1;
+          if (x === 4) direction = "left";
+        } else if (direction === "left") {
+          x = x - 1 < 0 ? 0 : x - 1;
+          if (x === 0) direction = "right";
+        } else if (direction === "down") {
+          y = y + 1 >= 6 ? 5 : y + 1;
+          if (y === 5) direction = "up";
+        } else if (direction === "up") {
+          y = y - 1 < 0 ? 0 : y - 1;
+          if (y === 0) direction = "down";
+        }
+
+        return { x, y, direction };
+      });
+
+      // Check for collision with hero
+      const heroCollision = newEnemyPositions.some(
+        (enemy) =>
+          enemy.x === state.heroPosition.x && enemy.y === state.heroPosition.y,
+      );
+
+      if (heroCollision && state.powerUps.shield <= 0) {
+        const newLives = state.lives - 1;
+        return {
+          ...state,
+          enemyPositions: newEnemyPositions,
+          lives: newLives,
+          gameOver: newLives <= 0,
+        };
+      }
+
+      return {
+        ...state,
+        enemyPositions: newEnemyPositions,
+      };
+    }
+
+    case "COLLECT_ITEM": {
+      const { position, value } = action.payload;
+      const { x, y } = position;
+      const newCollected = [...state.collected, value];
+
+      // Create a properly typed copy of the grid
+      const newGridItems = state.gridItems.map((row, rowIdx) =>
+        row.map((cell, cellIdx) =>
+          rowIdx === y && cellIdx === x
+            ? { type: "empty" as const, value: null }
+            : cell,
+        ),
+      );
+
+      // Check if the collected numbers satisfy the rule
+      let levelComplete = false;
+      let scoreIncrease = 10; // Base score for collecting a number
+
+      if (state.ruleType === "addition") {
+        const sum = newCollected.reduce((a, b) => a + b, 0);
+        if (sum === state.target) {
+          levelComplete = true;
+          scoreIncrease = 100; // Bonus for completing level
+        } else if (sum > state.target) {
+          // Penalty for going over the target
+          return {
+            ...state,
+            lives: state.lives - 1,
+            collected: [],
+            gameOver: state.lives <= 1,
+            score: Math.max(0, state.score - 5),
+          };
+        }
+      } else if (state.ruleType === "subtraction" && state.secondaryValue) {
+        // For subtraction, we check if the collected number is the correct answer
+        if (value === state.secondaryValue - state.target) {
+          levelComplete = true;
+          scoreIncrease = 100;
+        } else {
+          // Penalty for wrong answer
+          return {
+            ...state,
+            lives: state.lives - 1,
+            gameOver: state.lives <= 1,
+            score: Math.max(0, state.score - 5),
+          };
+        }
+      } else if (state.ruleType === "multiples") {
+        // For multiples, check if the collected number is a multiple of the target
+        if (value % state.target === 0 && value <= 12) {
+          scoreIncrease = 20;
+          // Level complete if they've collected 3 correct multiples
+          if (newCollected.filter((n) => n % state.target === 0).length >= 3) {
+            levelComplete = true;
+            scoreIncrease = 100;
+          }
+        } else {
+          // Penalty for wrong multiple
+          return {
+            ...state,
+            lives: state.lives - 1,
+            gameOver: state.lives <= 1,
+            score: Math.max(0, state.score - 5),
+          };
+        }
+      }
+
+      return {
+        ...state,
+        collected: newCollected,
+        gridItems: newGridItems,
+        score: state.score + scoreIncrease,
+        levelComplete,
+      };
+    }
+
+    case "USE_POWERUP": {
+      const { type, duration } = action.payload;
+      return {
+        ...state,
+        powerUps: {
+          ...state.powerUps,
+          [type]: duration,
+        },
+        score: state.score + 15, // Bonus for using power-up
+      };
+    }
+
+    case "UPDATE_POWERUPS": {
+      return {
+        ...state,
+        powerUps: {
+          timeFreeze: Math.max(0, state.powerUps.timeFreeze - 1),
+          mathBoost: Math.max(0, state.powerUps.mathBoost - 1),
+          shield: Math.max(0, state.powerUps.shield - 1),
+        },
+      };
+    }
+
+    case "START_LEVEL":
+      return {
+        ...state,
+        showLevelIntro: false,
+      };
+
+    case "COMPLETE_LEVEL":
+      return {
+        ...state,
+        levelComplete: true,
+      };
+
+    case "NEXT_LEVEL": {
+      const newLevel = state.level + 1;
+      let newRuleType: RuleType = state.ruleType;
+      let newTarget = state.target;
+      let newSecondaryValue = state.secondaryValue;
+
+      // Change rule type every 3 levels
+      if (newLevel % 3 === 1) {
+        newRuleType = "addition";
+        newTarget = 10 + Math.floor(newLevel / 3) * 5;
+      } else if (newLevel % 3 === 2) {
+        newRuleType = "subtraction";
+        newSecondaryValue = 15 + Math.floor(newLevel / 3) * 5;
+        newTarget = Math.floor(Math.random() * (newSecondaryValue - 5)) + 5;
+      } else {
+        newRuleType = "multiples";
+        newTarget = Math.floor(Math.random() * 6) + 2; // Multiples of 2-7
+      }
+
+      return {
+        ...state,
+        level: newLevel,
+        ruleType: newRuleType,
+        target: newTarget,
+        secondaryValue: newSecondaryValue,
+        collected: [],
+        heroPosition: { x: 2, y: 5 },
+        levelComplete: false,
+        showLevelIntro: true,
+        enemyPositions: [
+          { x: 0, y: 0, direction: "right" as Direction },
+          { x: 4, y: 2, direction: "left" as Direction },
+          ...(newLevel > 2
+            ? [{ x: 2, y: 1, direction: "down" as Direction }]
+            : []),
+        ],
+        gridItems: [],
+      };
+    }
+
+    case "LOSE_LIFE":
+      return {
+        ...state,
+        lives: state.lives - 1,
+        gameOver: state.lives - 1 <= 0,
+      };
+
+    case "GAME_OVER":
+      return {
+        ...state,
+        gameOver: true,
+      };
+
+    case "RESET_GAME":
+      return initialGameState;
+
+    default:
+      return state;
+  }
 }
 
 export default function HeroMathGame() {
-  const [gameState, setGameState] = useState<GameState>({
-    level: 1,
-    lives: 3,
-    score: 0,
-    ruleType: "addition",
-    target: 10,
-    collected: [],
-    heroPosition: { x: 2, y: 5 },
-    gameOver: false,
-    levelComplete: false,
-    showLevelIntro: true,
-    powerUps: {
-      timeFreeze: 0,
-      mathBoost: 0,
-      shield: 0,
-    },
-    enemyPositions: [
-      { x: 0, y: 0, direction: "right" },
-      { x: 4, y: 2, direction: "left" },
-    ],
-    gridItems: [],
-  });
+  const [gameState, dispatch] = useReducer(gameReducer, initialGameState);
 
   // Initialize grid items based on level and rule type
   const initializeGrid = useCallback(() => {
-    const grid = [];
+    const grid: Cell[][] = [];
     const { level, ruleType } = gameState;
 
     // Create a 5x6 grid
     for (let y = 0; y < 6; y++) {
-      const row = [];
+      const row: Cell[] = [];
       for (let x = 0; x < 5; x++) {
         // Default to empty cell
-        let cellType = "empty";
-        let cellValue = null;
+        let cellType: Cell["type"] = "empty";
+        let cellValue: number | null = null;
 
         // Randomly place numbers based on rule type
         if (Math.random() > 0.4) {
@@ -107,14 +386,12 @@ export default function HeroMathGame() {
     const heroY = gameState.heroPosition.y;
     const heroX = gameState.heroPosition.x;
     if (heroY < grid.length && heroX < (grid[heroY]?.length ?? 0)) {
-      const row = grid[heroY];
-      if (row) {
-        row[heroX] = { type: "empty", value: null };
+      if (grid[heroY]) {
+        grid[heroY][heroX] = { type: "empty", value: null };
       }
     }
 
     return grid;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     gameState.level,
     gameState.ruleType,
@@ -125,10 +402,8 @@ export default function HeroMathGame() {
   // Initialize the game
   useEffect(() => {
     if (gameState.gridItems.length === 0) {
-      setGameState((prev) => ({
-        ...prev,
-        gridItems: initializeGrid(),
-      }));
+      const newGrid = initializeGrid();
+      dispatch({ type: "INITIALIZE_GRID", payload: newGrid });
     }
   }, [gameState.gridItems.length, initializeGrid]);
 
@@ -136,52 +411,12 @@ export default function HeroMathGame() {
   useEffect(() => {
     if (gameState.levelComplete) {
       const timer = setTimeout(() => {
-        const newLevel = gameState.level + 1;
-        let newRuleType: RuleType = gameState.ruleType;
-        let newTarget = gameState.target;
-        let newSecondaryValue = gameState.secondaryValue;
-
-        // Change rule type every 3 levels
-        if (newLevel % 3 === 1) {
-          newRuleType = "addition";
-          newTarget = 10 + Math.floor(newLevel / 3) * 5;
-        } else if (newLevel % 3 === 2) {
-          newRuleType = "subtraction";
-          newSecondaryValue = 15 + Math.floor(newLevel / 3) * 5;
-          newTarget = Math.floor(Math.random() * (newSecondaryValue - 5)) + 5;
-        } else {
-          newRuleType = "multiples";
-          newTarget = Math.floor(Math.random() * 6) + 2; // Multiples of 2-7
-        }
-
-        setGameState((prev) => ({
-          ...prev,
-          level: newLevel,
-          ruleType: newRuleType,
-          target: newTarget,
-          secondaryValue: newSecondaryValue,
-          collected: [],
-          heroPosition: { x: 2, y: 5 },
-          levelComplete: false,
-          showLevelIntro: true,
-          enemyPositions: [
-            { x: 0, y: 0, direction: "right" },
-            { x: 4, y: 2, direction: "left" },
-            ...(newLevel > 2 ? [{ x: 2, y: 1, direction: "down" }] : []),
-          ],
-          gridItems: [],
-        }));
+        dispatch({ type: "NEXT_LEVEL" });
       }, 2000);
 
       return () => clearTimeout(timer);
     }
-  }, [
-    gameState.levelComplete,
-    gameState.level,
-    gameState.ruleType,
-    gameState.target,
-    gameState.secondaryValue,
-  ]);
+  }, [gameState.levelComplete]);
 
   // Move enemies
   useEffect(() => {
@@ -195,49 +430,7 @@ export default function HeroMathGame() {
     }
 
     const enemyMovementInterval = setInterval(() => {
-      setGameState((prev) => {
-        const newEnemyPositions = prev.enemyPositions.map((enemy) => {
-          let { x, y, direction } = enemy;
-
-          // Move enemy based on direction
-          if (direction === "right") {
-            x = x + 1 >= 5 ? 4 : x + 1;
-            if (x === 4) direction = "left";
-          } else if (direction === "left") {
-            x = x - 1 < 0 ? 0 : x - 1;
-            if (x === 0) direction = "right";
-          } else if (direction === "down") {
-            y = y + 1 >= 6 ? 5 : y + 1;
-            if (y === 5) direction = "up";
-          } else if (direction === "up") {
-            y = y - 1 < 0 ? 0 : y - 1;
-            if (y === 0) direction = "down";
-          }
-
-          return { x, y, direction };
-        });
-
-        // Check for collision with hero
-        const heroCollision = newEnemyPositions.some(
-          (enemy) =>
-            enemy.x === prev.heroPosition.x && enemy.y === prev.heroPosition.y,
-        );
-
-        if (heroCollision && prev.powerUps.shield <= 0) {
-          const newLives = prev.lives - 1;
-          return {
-            ...prev,
-            enemyPositions: newEnemyPositions,
-            lives: newLives,
-            gameOver: newLives <= 0,
-          };
-        }
-
-        return {
-          ...prev,
-          enemyPositions: newEnemyPositions,
-        };
-      });
+      dispatch({ type: "MOVE_ENEMIES" });
     }, 1000); // Move enemies every second
 
     return () => clearInterval(enemyMovementInterval);
@@ -256,14 +449,7 @@ export default function HeroMathGame() {
       gameState.powerUps.shield > 0
     ) {
       const powerUpInterval = setInterval(() => {
-        setGameState((prev) => ({
-          ...prev,
-          powerUps: {
-            timeFreeze: Math.max(0, prev.powerUps.timeFreeze - 1),
-            mathBoost: Math.max(0, prev.powerUps.mathBoost - 1),
-            shield: Math.max(0, prev.powerUps.shield - 1),
-          },
-        }));
+        dispatch({ type: "UPDATE_POWERUPS" });
       }, 1000);
 
       return () => clearInterval(powerUpInterval);
@@ -283,210 +469,116 @@ export default function HeroMathGame() {
     const handleKeyDown = (e: KeyboardEvent) => {
       e.preventDefault();
 
-      setGameState((prev) => {
-        let { x, y } = prev.heroPosition;
-        let collectItem = false;
+      const { x, y } = gameState.heroPosition;
+      let newX = x;
+      let newY = y;
+      let collectItem = false;
 
-        // Move hero based on key press
-        if ((e.key === "ArrowUp" || e.key === "w" || e.key === "W") && y > 0) {
-          y -= 1;
-        } else if (
-          (e.key === "ArrowDown" || e.key === "s" || e.key === "S") &&
-          y < 5
-        ) {
-          y += 1;
-        } else if (
-          (e.key === "ArrowLeft" || e.key === "a" || e.key === "A") &&
-          x > 0
-        ) {
-          x -= 1;
-        } else if (
-          (e.key === "ArrowRight" || e.key === "d" || e.key === "D") &&
-          x < 4
-        ) {
-          x += 1;
-        } else if (e.key === " ") {
-          // Space bar to collect item
-          collectItem = true;
-        }
+      // Move hero based on key press
+      if ((e.key === "ArrowUp" || e.key === "w" || e.key === "W") && y > 0) {
+        newY -= 1;
+      } else if (
+        (e.key === "ArrowDown" || e.key === "s" || e.key === "S") &&
+        y < 5
+      ) {
+        newY += 1;
+      } else if (
+        (e.key === "ArrowLeft" || e.key === "a" || e.key === "A") &&
+        x > 0
+      ) {
+        newX -= 1;
+      } else if (
+        (e.key === "ArrowRight" || e.key === "d" || e.key === "D") &&
+        x < 4
+      ) {
+        newX += 1;
+      } else if (e.key === " ") {
+        // Space bar to collect item
+        collectItem = true;
+      }
 
+      // Update hero position
+      if (newX !== x || newY !== y) {
         // Check for enemy collision
-        const enemyCollision = prev.enemyPositions.some(
-          (enemy) => enemy.x === x && enemy.y === y,
+        const enemyCollision = gameState.enemyPositions.some(
+          (enemy) => enemy.x === newX && enemy.y === newY,
         );
 
-        if (enemyCollision && prev.powerUps.shield <= 0) {
-          const newLives = prev.lives - 1;
-          return {
-            ...prev,
-            lives: newLives,
-            gameOver: newLives <= 0,
-          };
+        if (enemyCollision && gameState.powerUps.shield <= 0) {
+          dispatch({ type: "LOSE_LIFE" });
+          return;
         }
 
-        // Handle item collection
-        if (collectItem && prev.gridItems[y]?.[x]) {
-          // Safely access the cell with proper type narrowing
-          const row = prev.gridItems[y];
-          if (!row) return prev;
+        // Check for obstacle collision
+        const cell = gameState.gridItems[newY]?.[newX];
+        if (cell?.type === "obstacle") {
+          // Can't move into obstacles
+          return;
+        }
 
-          const cell = row[x];
-          if (!cell) return prev;
+        dispatch({ type: "MOVE_HERO", payload: { x: newX, y: newY } });
+      }
 
-          if (cell.type === "number" && cell.value !== null) {
-            const newCollected = [...prev.collected, cell.value];
-            const newGridItems = [...prev.gridItems];
+      // Handle item collection
+      if (collectItem) {
+        const cell = gameState.gridItems[y]?.[x];
 
-            // Safely update the new grid
-            const newRow = newGridItems[y];
-            if (newRow) {
-              newRow[x] = { type: "empty", value: null };
-            }
+        if (!cell) return;
 
-            // Check if the collected numbers satisfy the rule
-            let levelComplete = false;
-            let scoreIncrease = 10; // Base score for collecting a number
+        if (cell.type === "number" && cell.value !== null) {
+          dispatch({
+            type: "COLLECT_ITEM",
+            payload: {
+              position: { x, y },
+              value: cell.value,
+            },
+          });
+        } else if (cell.type === "powerup" && cell.value !== null) {
+          // Handle power-up collection
+          let powerUpType: keyof PowerUps;
+          let duration: number;
 
-            if (prev.ruleType === "addition") {
-              const sum = newCollected.reduce((a, b) => a + b, 0);
-              if (sum === prev.target) {
-                levelComplete = true;
-                scoreIncrease = 100; // Bonus for completing level
-              } else if (sum > prev.target) {
-                // Penalty for going over the target
-                return {
-                  ...prev,
-                  lives: prev.lives - 1,
-                  collected: [],
-                  gameOver: prev.lives <= 1,
-                  score: Math.max(0, prev.score - 5),
-                  gridItems: initializeGrid(),
-                };
-              }
-            } else if (prev.ruleType === "subtraction" && prev.secondaryValue) {
-              // For subtraction, we check if the collected number is the correct answer
-              if (cell.value === prev.secondaryValue - prev.target) {
-                levelComplete = true;
-                scoreIncrease = 100;
-              } else {
-                // Penalty for wrong answer
-                return {
-                  ...prev,
-                  lives: prev.lives - 1,
-                  gameOver: prev.lives <= 1,
-                  score: Math.max(0, prev.score - 5),
-                };
-              }
-            } else if (prev.ruleType === "multiples") {
-              // For multiples, check if the collected number is a multiple of the target
-              if (cell.value % prev.target === 0 && cell.value <= 12) {
-                scoreIncrease = 20;
-                // Level complete if they've collected 3 correct multiples
-                if (
-                  newCollected.filter((n) => n % prev.target === 0).length >= 3
-                ) {
-                  levelComplete = true;
-                  scoreIncrease = 100;
-                }
-              } else {
-                // Penalty for wrong multiple
-                return {
-                  ...prev,
-                  lives: prev.lives - 1,
-                  gameOver: prev.lives <= 1,
-                  score: Math.max(0, prev.score - 5),
-                };
-              }
-            }
+          if (cell.value === 0) {
+            powerUpType = "timeFreeze";
+            duration = 10;
+          } else if (cell.value === 1) {
+            powerUpType = "mathBoost";
+            duration = 15;
+          } else {
+            powerUpType = "shield";
+            duration = 8;
+          }
 
-            return {
-              ...prev,
-              heroPosition: { x, y },
-              collected: newCollected,
-              gridItems: newGridItems,
-              score: prev.score + scoreIncrease,
-              levelComplete,
-            };
-          } else if (cell.type === "powerup" && cell.value !== null) {
-            const newGridItems = [...prev.gridItems];
+          // First update the grid to remove the power-up
+          const newGridItems = [...gameState.gridItems];
+          if (newGridItems[y]?.[x]) {
+            newGridItems[y][x] = { type: "empty", value: null };
+            dispatch({ type: "INITIALIZE_GRID", payload: newGridItems });
 
-            // Safely update the new grid
-            const newRow = newGridItems[y];
-            if (newRow) {
-              newRow[x] = { type: "empty", value: null };
-            }
-
-            const newPowerUps = { ...prev.powerUps };
-            if (cell.value === 0) {
-              newPowerUps.timeFreeze = 10; // 10 seconds of time freeze
-            } else if (cell.value === 1) {
-              newPowerUps.mathBoost = 15; // 15 seconds of math boost
-            } else if (cell.value === 2) {
-              newPowerUps.shield = 8; // 8 seconds of shield
-            }
-
-            return {
-              ...prev,
-              heroPosition: { x, y },
-              gridItems: newGridItems,
-              powerUps: newPowerUps,
-              score: prev.score + 15, // Bonus for collecting power-up
-            };
-          } else if (cell.type === "obstacle") {
-            // Can't move into obstacles
-            return prev;
+            // Then activate the power-up
+            dispatch({
+              type: "USE_POWERUP",
+              payload: { type: powerUpType, duration },
+            });
           }
         }
-
-        return {
-          ...prev,
-          heroPosition: { x, y },
-        };
-      });
+      }
     };
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [
-    gameState.gameOver,
-    gameState.levelComplete,
-    gameState.showLevelIntro,
-    initializeGrid,
-  ]);
+  }, [gameState]);
 
   // Start a new game
   const startNewGame = () => {
-    setGameState({
-      level: 1,
-      lives: 3,
-      score: 0,
-      ruleType: "addition",
-      target: 10,
-      collected: [],
-      heroPosition: { x: 2, y: 5 },
-      gameOver: false,
-      levelComplete: false,
-      showLevelIntro: true,
-      powerUps: {
-        timeFreeze: 0,
-        mathBoost: 0,
-        shield: 0,
-      },
-      enemyPositions: [
-        { x: 0, y: 0, direction: "right" },
-        { x: 4, y: 2, direction: "left" },
-      ],
-      gridItems: [],
-    });
+    dispatch({ type: "RESET_GAME" });
   };
 
   // Start the level after intro
   const startLevel = () => {
-    setGameState((prev) => ({
-      ...prev,
-      showLevelIntro: false,
-      gridItems: initializeGrid(),
-    }));
+    const newGrid = initializeGrid();
+    dispatch({ type: "INITIALIZE_GRID", payload: newGrid });
+    dispatch({ type: "START_LEVEL" });
   };
 
   // Render game UI
