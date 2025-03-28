@@ -491,8 +491,8 @@ export default function HeroMathGame() {
 
   // Render game UI
   return (
-    <div className="flex flex-col items-center">
-      <Card className="w-full max-w-4xl overflow-hidden rounded-xl bg-white/90 p-4 shadow-xl">
+    <div className="flex min-h-screen flex-col items-center justify-center p-2">
+      <Card className="w-full max-w-3xl overflow-hidden rounded-xl bg-white/90 p-3 shadow-xl">
         {/* Game status bar */}
         <GameStatus
           level={gameState.level}
@@ -505,7 +505,7 @@ export default function HeroMathGame() {
         />
 
         {/* Power-ups display */}
-        <div className="mb-4 flex justify-center gap-4">
+        <div className="mb-2 flex justify-center gap-4">
           <div
             className={`flex items-center gap-1 ${gameState.powerUps.timeFreeze > 0 ? "font-bold text-blue-600" : "text-gray-400"}`}
           >

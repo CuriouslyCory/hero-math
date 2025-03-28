@@ -68,7 +68,7 @@ export default function LevelIntro({
   };
 
   return (
-    <div className="flex aspect-[5/6] w-full flex-col items-center justify-center overflow-hidden rounded-lg border-4 border-yellow-500 bg-blue-100 p-6 shadow-inner">
+    <div className="flex aspect-[4/4] w-full flex-col items-center justify-center overflow-hidden rounded-lg border-4 border-yellow-500 bg-blue-100 p-6 shadow-inner">
       <motion.div
         className="max-w-md rounded-lg bg-white p-6 text-center shadow-lg"
         initial={{ scale: 0.8, opacity: 0 }}

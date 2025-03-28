@@ -48,8 +48,8 @@ export default function GameStatus({
   };
 
   return (
-    <div className="mb-4">
-      <div className="mb-2 flex items-center justify-between">
+    <div className="mb-2">
+      <div className="mb-1 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <span className="text-lg font-bold">Level: {level}</span>
           <div className="flex">
@@ -64,15 +64,15 @@ export default function GameStatus({
         <span className="text-lg font-bold">Score: {score}</span>
       </div>
 
-      <Card className="relative overflow-hidden border-2 border-yellow-500 bg-yellow-100 p-3">
+      <Card className="relative overflow-hidden border-2 border-yellow-500 bg-yellow-100 p-2">
         {/* Comic speech bubble style */}
         <div className="absolute -top-3 -left-3 h-6 w-6 rotate-45 transform border-2 border-yellow-500 bg-yellow-100"></div>
 
         <div className="flex flex-col">
-          <h3 className="mb-1 text-center text-lg font-bold">
+          <h3 className="mb-0 text-center text-base font-bold">
             {getRuleText()}
           </h3>
-          <p className="text-center text-sm">{getProgress()}</p>
+          <p className="text-center text-xs">{getProgress()}</p>
         </div>
       </Card>
     </div>
