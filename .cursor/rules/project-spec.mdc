@@ -1,0 +1,73 @@
+---
+description: Project spect: game rules and description
+globs: 
+alwaysApply: false
+---
+1. Title & Summary
+
+Title: “Hero Math: The Action Quest”
+
+Summary:
+“Hero Math: The Action Quest” is an engaging comic book-inspired math adventure where players join a daring superhero on a mission to save the city by solving fun, simple math challenges. With vibrant visuals and dynamic story panels, each level introduces a new math rule that requires quick thinking and sharp reflexes, making math both exciting and accessible.
+
+2. Game Objective
+
+The primary goal is to help the superhero collect the correct numbers or symbols from the grid that satisfy the current math challenge. Whether it’s reaching a target sum, completing a subtraction challenge, or selecting valid multiples (12 and under), players must use their basic math skills to overcome obstacles, avoid enemies, and progress to the next level.
+
+3. How to Play
+	•	Grid/Board Layout:
+The game board is a dynamic 5x6 grid styled like a comic panel. Each cell may contain numbers, symbols, obstacles, or power-ups, with layouts that vary in each level to keep the challenge fresh.
+	•	Controls:
+	•	Movement: Use the arrow keys or WASD to navigate the superhero across the grid.
+	•	Interaction: Press the space bar to collect or interact with an item when standing on a cell containing a math element.
+	•	Action Buttons: Additional keys may activate special power-ups or abilities during bonus rounds.
+	•	Actions:
+	•	Moving: Navigate the grid cell by cell.
+	•	Selecting/Collecting: Use space to “munch” an item, which then checks against the current math rule.
+	•	Using Power-Ups: Activate abilities like time freezes or hints to overcome tricky challenges.
+
+4. Rule Set
+	•	[RULE TYPE 1: Addition]
+Objective: Collect numbers or symbols that add up to a given target sum. For example, if the target is 10, the player might need to select a combination of items that total 10.
+Presentation: The current addition rule is displayed at the top of the screen in a comic-style speech bubble from the superhero mentor, along with the target sum.
+	•	[RULE TYPE 2: Subtraction]
+Objective: Solve subtraction challenges by selecting the correct number or symbol that, when subtracted from a given value, results in a target number. For instance, if the rule states “15 - ? = 7”, the player should pick the number 8.
+Presentation: This rule appears on a “mission briefing” panel that highlights the subtraction equation, giving players clear visual guidance.
+	•	[RULE TYPE 3: Multiples (12 and under)]
+Objective: Identify and collect numbers that are multiples of a given number, with all numbers involved 12 and under. For example, if the target is 3, valid numbers would be 3, 6, 9, and 12.
+Presentation: The rule is shown at the top of the screen, perhaps with dynamic animations of the multiples being highlighted, ensuring clarity and simplicity.
+
+5. Enemies & Obstacles
+	•	Enemies:
+	•	Math Villains: Comic-themed adversaries that roam the grid following set patterns or random movements. If they catch the hero, a life is lost.
+	•	Puzzle Thieves: Sneaky characters that can steal collected items, forcing players to quickly secure their correct selections.
+	•	Obstacles:
+	•	Moving Blocks: Shifting blocks on the grid create temporary barriers, requiring players to plan their path carefully.
+	•	Traps: Hidden comic-style traps like brief explosions or electric shocks that temporarily stun the hero if a wrong move is made.
+
+These elements add excitement and require players to balance quick math problem solving with tactical movement.
+
+6. Lives, Scoring & Bonus Levels
+	•	Lives/Health System:
+Players start with 3 lives. Each wrong move—whether it’s selecting an incorrect number or colliding with an enemy—results in losing one life. Extra lives can be earned by achieving high scores or completing bonus challenges.
+	•	Scoring Mechanism:
+	•	Correct Moves: Each correct math solution adds points.
+	•	Combo Bonuses: Rapidly collecting a series of correct items increases the score exponentially.
+	•	Penalties: Incorrect selections and enemy encounters deduct points and cost lives.
+	•	Bonus Levels & Power-Ups:
+	•	Bonus Rounds: Occasionally, players are transported to bonus rounds where they must solve rapid-fire math problems to earn extra points.
+	•	Power-Ups: Items like “Time Freeze” (stops enemy movement), “Math Boost” (provides hints), and “Shield” (temporary invincibility) can be collected to ease difficult challenges.
+
+7. Technical Stack & Implementation Details
+	•	Scaffolded with create-t3-app using:
+	•	Typescript: Ensures robust type-checking and maintainable code.
+	•	App Router: Allows smooth transitions between game levels and bonus rounds.
+	•	TRPC: Enables efficient, type-safe communication between the front-end and back-end.
+	•	next-auth: Handles user authentication to save progress and manage leaderboards.
+	•	drizzle: Serves as a lightweight ORM for managing game data and high scores.
+	•	Extensions & Future Ideas:
+	•	Leaderboards: Introduce a global leaderboard to spark friendly competition among players.
+	•	Multiplayer Mode: Develop cooperative or competitive multiplayer modes where players can team up or face off.
+	•	Customization: Offer options for players to create custom comic strips or design personalized levels, further engaging the community.
+
+“Hero Math: The Action Quest” provides a perfect blend of simple yet engaging math challenges and action-packed gameplay. With addition, subtraction, and multiples (12 and under) as the core rule types, the game is both accessible for kids and exciting enough to keep them coming back for more heroic math adventures!

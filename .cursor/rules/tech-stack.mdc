@@ -1,0 +1,64 @@
+---
+description: project tech stack and desired folder structure
+globs: 
+alwaysApply: false
+---
+## Main tech stack
+- Nextjs v15
+- React v19
+- tailwindcss v4
+- Tanstack query (react-query)
+- wagmi + viem (web3 wallet connector)
+- shadcn/ui (components)
+- TRPC v11 (serverless functions/backend)
+- drizzle orm (sqlite)
+- postgres
+
+## Folder Structure Meta
+.
+├─ public  // images and other static files
+│  └─ favicon.ico
+├─ src
+│  ├─ app  // nextjs app dir router
+│  │  ├─ api
+│  │  │  ├─ auth
+│  │  │  │  └─ [...nextauth]
+│  │  │  │     └─ route.ts
+│  │  │  └─ trpc
+│  │  │     └─ [trpc]
+│  │  │        └─ route.ts
+│  │  ├─ layout.tsx  // root layout
+│  │  └─ page.tsx  // default route
+│  ├─ components
+│  │  ├─ ui // shadcn/ui and other generic ui components
+│  │  ├─ feature // complex features should be grouped together in a folder
+│  │  └─ component-name.tsx // feature specific components that can be contained in a single file without being hard to read can be a single file.
+│  ├─ server // server only code, can not be referenced (imported) directly by frontend/client code. 
+│  │  ├─ auth.ts
+│  │  ├─ db
+│  │  │  ├─ index.ts
+│  │  │  └─ schema.ts // drizzle ORM database schema
+│  │  └─ api
+│  │     ├─ routers
+│  │     │  └─ example.ts // trpc routers to handle serverless backend logic
+│  │     ├─ trpc.ts
+│  │     └─ root.ts // trpc routers need to be added to the root to be useable in the frontend
+│  ├─ styles
+│  │  └─ globals.css // tailwind v4 based style config
+│  ├─ env.js
+│  └─ trpc
+│     ├─ query-client.ts
+│     ├─ react.tsx
+│     └─ server.ts
+├─ .env
+├─ .env.example
+├─ .eslintrc.cjs
+├─ .gitignore
+├─ drizzle.config.ts
+├─ next-env.d.ts
+├─ next.config.js
+├─ package.json
+├─ postcss.config.js
+├─ prettier.config.js
+├─ README.md
+└─ tsconfig.json
